@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0b0014"/>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff4dd2"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <!-- Orelhas + cabeça -->
+  <path d="M15 40 L15 22 L24 12 L30 26 L34 26 L40 12 L49 22 L49 40 C49 50 41 56 32 56 C23 56 15 50 15 40Z" fill="url(#g)"/>
+  <!-- Olhos -->
+  <ellipse cx="26" cy="37" rx="3.2" ry="3.5" fill="#0b0014"/>
+  <ellipse cx="38" cy="37" rx="3.2" ry="3.5" fill="#0b0014"/>
+  <!-- Brilho dos olhos -->
+  <circle cx="27.4" cy="35.6" r="1" fill="white" opacity="0.7"/>
+  <circle cx="39.4" cy="35.6" r="1" fill="white" opacity="0.7"/>
+  <!-- Nariz -->
+  <ellipse cx="32" cy="43" rx="2" ry="1.4" fill="#0b0014" opacity="0.6"/>
+  <!-- Boca -->
+  <path d="M29 45.5 Q32 48.5 35 45.5" stroke="#0b0014" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <!-- Bigodes esquerdos -->
+  <line x1="19" y1="42" x2="27" y2="43.5" stroke="#0b0014" stroke-width="1.3" stroke-linecap="round" opacity="0.7"/>
+  <line x1="19" y1="45" x2="27" y2="45" stroke="#0b0014" stroke-width="1.3" stroke-linecap="round" opacity="0.7"/>
+  <!-- Bigodes direitos -->
+  <line x1="45" y1="42" x2="37" y2="43.5" stroke="#0b0014" stroke-width="1.3" stroke-linecap="round" opacity="0.7"/>
+  <line x1="45" y1="45" x2="37" y2="45" stroke="#0b0014" stroke-width="1.3" stroke-linecap="round" opacity="0.7"/>
+</svg>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Conversor universal de arquivos — PDF, PNG, JPG, WEBP, ICO, SVG e muito mais. 100% no navegador, sem upload. Por Neko Studios." />
+  <title>NekoConvert — Conversor Universal | Neko Studios</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="shortcut icon" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Bibliotecas (todas via CDN, 100% client-side) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+</head>
+<body>
+  <!-- Fundo animado -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="topbar">
+    <a class="brand" href="#">
+      <span class="brand-mark" aria-hidden="true">
+        <!-- Neko logo SVG -->
+        <svg viewBox="0 0 64 64" width="36" height="36">
+          <defs>
+            <linearGradient id="nekoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff4dd2"/>
+              <stop offset="50%" stop-color="#a855f7"/>
+              <stop offset="100%" stop-color="#22d3ee"/>
+            </linearGradient>
+          </defs>
+          <path fill="url(#nekoGrad)" d="M16 10 L24 22 L40 22 L48 10 L48 32 C48 44 40 52 32 52 C24 52 16 44 16 32 Z"/>
+          <circle cx="25" cy="32" r="2.6" fill="#0b0014"/>
+          <circle cx="39" cy="32" r="2.6" fill="#0b0014"/>
+          <path d="M30 38 Q32 41 34 38" stroke="#0b0014" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M28 36 L30 36" stroke="#0b0014" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M34 36 L36 36" stroke="#0b0014" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <strong>NekoConvert</strong>
+        <small>by Neko Studios</small>
+      </span>
+    </a>
+
+    <nav class="nav-pills">
+      <a href="#converter">Converter</a>
+      <a href="#formats">Formatos</a>
+      <a href="#about">Sobre</a>
+    </nav>
+
+    <div class="topbar-actions">
+      <button id="themeToggle" class="icon-btn" title="Alternar tema" aria-label="Alternar tema">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-tag">
+      <span class="dot"></span> 100% offline · Seus arquivos nunca saem do navegador
+    </div>
+    <h1 class="hero-title">
+      Converta <span class="grad-text">qualquer arquivo</span><br/>
+      em segundos. <span class="kawaii">≧^◡^≦</span>
+    </h1>
+    <p class="hero-sub">
+      PDF, PNG, JPG, WEBP, BMP, GIF, ICO, SVG e mais. Sem servidores. Sem cadastro. Sem limites de tamanho.
+    </p>
+    <div class="hero-stats">
+      <div><strong id="statFormats">18+</strong><span>formatos</span></div>
+      <div><strong>0</strong><span>uploads para servidor</span></div>
+      <div><strong>∞</strong><span>conversões grátis</span></div>
+    </div>
+    <a href="#converter" class="cta">
+      Começar agora
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </a>
+  </section>
+
+  <!-- Conversor -->
+  <main id="converter" class="container">
+    <!-- Painel principal -->
+    <section class="panel">
+      <!-- Dropzone -->
+      <div id="dropzone" class="dropzone" tabindex="0">
+        <input type="file" id="fileInput" multiple hidden
+               accept="image/*,application/pdf,.svg,.ico,.bmp,.webp,.gif,.heic" />
+        <div class="dropzone-inner">
+          <div class="drop-icon">
+            <svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M32 8v32"/>
+              <path d="M20 20l12-12 12 12"/>
+              <path d="M8 44v8a4 4 0 0 0 4 4h40a4 4 0 0 0 4-4v-8"/>
+            </svg>
+          </div>
+          <h3>Solte arquivos aqui</h3>
+          <p>ou <button class="link-btn" id="browseBtn" type="button">selecione do seu dispositivo</button></p>
+          <small>Imagens · PDF · SVG · ICO · até centenas de arquivos por vez</small>
+        </div>
+      </div>
+
+      <!-- Lista de arquivos -->
+      <div id="fileList" class="file-list" hidden></div>
+
+      <!-- Configurações -->
+      <div id="settings" class="settings" hidden>
+        <div class="settings-grid">
+          <div class="setting">
+            <label for="targetFormat">Converter para</label>
+            <div class="select-wrap">
+              <select id="targetFormat">
+                <optgroup label="🖼️ Sem perdas">
+                  <option value="png">PNG — transparência</option>
+                  <option value="bmp">BMP — bitmap puro</option>
+                </optgroup>
+                <optgroup label="🗜️ Compactado">
+                  <option value="jpg">JPG — universal</option>
+                  <option value="jpeg">JPEG — extensão longa</option>
+                  <option value="webp">WEBP — moderno</option>
+                </optgroup>
+                <optgroup label="🎬 Outros">
+                  <option value="gif">GIF</option>
+                  <option value="ico">ICO — favicon multi-tamanho</option>
+                </optgroup>
+                <optgroup label="📄 Documento">
+                  <option value="pdf">PDF</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting" id="qualityWrap">
+            <label for="quality">Qualidade <span id="qualityVal" class="badge">92%</span></label>
+            <input type="range" id="quality" min="10" max="100" value="92" />
+          </div>
+
+          <div class="setting" id="resizeWrap">
+            <label>Redimensionar</label>
+            <div class="resize-row">
+              <input type="number" id="resizeW" placeholder="largura" min="1" />
+              <span class="x">×</span>
+              <input type="number" id="resizeH" placeholder="altura" min="1" />
+            </div>
+            <select id="resizePreset" title="Predefinições" class="preset-select">
+              <option value="">— Predefinições —</option>
+              <optgroup label="📄 Papel (300 DPI)">
+                <option value="2480x3508">A4 retrato (2480×3508)</option>
+                <option value="3508x2480">A4 paisagem (3508×2480)</option>
+                <option value="3508x4961">A3 retrato (3508×4961)</option>
+                <option value="1748x2480">A5 retrato (1748×2480)</option>
+                <option value="2550x3300">Carta retrato (2550×3300)</option>
+                <option value="2550x4200">Ofício retrato (2550×4200)</option>
+              </optgroup>
+              <optgroup label="🖥️ Tela / Vídeo">
+                <option value="3840x2160">4K UHD (3840×2160)</option>
+                <option value="2560x1440">QHD (2560×1440)</option>
+                <option value="1920x1080">Full HD 1080p</option>
+                <option value="1280x720">HD 720p</option>
+                <option value="854x480">SD 480p</option>
+              </optgroup>
+              <optgroup label="📱 Redes sociais">
+                <option value="1080x1080">Instagram Post (1:1)</option>
+                <option value="1080x1350">Instagram Retrato (4:5)</option>
+                <option value="1080x1920">Story / Reels (9:16)</option>
+                <option value="1200x630">Facebook / OG (1.91:1)</option>
+                <option value="1500x500">Twitter Capa</option>
+                <option value="1280x720">YouTube Thumbnail</option>
+                <option value="2560x1440">YouTube Capa</option>
+                <option value="1584x396">LinkedIn Capa</option>
+              </optgroup>
+              <optgroup label="⭐ Ícones">
+                <option value="16x16">16×16</option>
+                <option value="32x32">32×32</option>
+                <option value="48x48">48×48</option>
+                <option value="64x64">64×64</option>
+                <option value="128x128">128×128</option>
+                <option value="256x256">256×256</option>
+                <option value="512x512">512×512</option>
+                <option value="1024x1024">App Store (1024×1024)</option>
+              </optgroup>
+            </select>
+            <label class="check">
+              <input type="checkbox" id="keepRatio" checked /> manter proporção
+            </label>
+          </div>
+
+          <div class="setting" id="bgWrap">
+            <label>Fundo (ao remover transparência)</label>
+            <div class="bg-row">
+              <input type="color" id="bgColor" value="#ffffff" />
+              <select id="bgMode">
+                <option value="auto">automático</option>
+                <option value="white">branco</option>
+                <option value="black">preto</option>
+                <option value="custom">personalizado</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting" id="pdfWrap">
+            <label>PDF</label>
+            <div class="pdf-row">
+              <select id="pdfPageSize">
+                <option value="auto">tamanho da imagem</option>
+                <option value="a4">A4</option>
+                <option value="letter">Carta</option>
+                <option value="a3">A3</option>
+                <option value="a5">A5</option>
+              </select>
+              <select id="pdfOrientation">
+                <option value="auto">orientação auto</option>
+                <option value="portrait">retrato</option>
+                <option value="landscape">paisagem</option>
+              </select>
+              <label class="check">
+                <input type="checkbox" id="pdfMerge" checked /> juntar tudo num PDF
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <details class="advanced">
+          <summary>
+            <span class="summary-left">
+              <span class="adv-ico">✨</span>
+              <span>
+                <strong>Edição avançada</strong>
+                <small>rotacionar · espelhar · filtros estilo Instagram</small>
+              </span>
+            </span>
+            <span class="chev">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </span>
+          </summary>
+          <div class="adv-body">
+            <div class="adv-row">
+              <label>Rotacionar</label>
+              <div class="btn-group" id="rotateGroup">
+                <button type="button" data-rot="0" class="seg active">0°</button>
+                <button type="button" data-rot="90" class="seg">90°</button>
+                <button type="button" data-rot="180" class="seg">180°</button>
+                <button type="button" data-rot="270" class="seg">270°</button>
+              </div>
+            </div>
+
+            <div class="adv-row">
+              <label>Espelhar</label>
+              <div class="btn-group" id="flipGroup">
+                <button type="button" data-flip="h" class="seg toggle">⇋ Horizontal</button>
+                <button type="button" data-flip="v" class="seg toggle">⇵ Vertical</button>
+              </div>
+            </div>
+
+            <div class="adv-row">
+              <label>Filtros</label>
+              <div class="filters">
+                <div class="filter">
+                  <span>Brilho <i id="vBright" class="badge">100%</i></span>
+                  <input type="range" id="fBright" min="0" max="200" value="100" />
+                </div>
+                <div class="filter">
+                  <span>Contraste <i id="vContrast" class="badge">100%</i></span>
+                  <input type="range" id="fContrast" min="0" max="200" value="100" />
+                </div>
+                <div class="filter">
+                  <span>Saturação <i id="vSat" class="badge">100%</i></span>
+                  <input type="range" id="fSat" min="0" max="200" value="100" />
+                </div>
+                <div class="filter">
+                  <span>Desfoque <i id="vBlur" class="badge">0px</i></span>
+                  <input type="range" id="fBlur" min="0" max="20" value="0" step="0.5" />
+                </div>
+                <div class="filter">
+                  <span>Tom de cinza <i id="vGray" class="badge">0%</i></span>
+                  <input type="range" id="fGray" min="0" max="100" value="0" />
+                </div>
+                <div class="filter">
+                  <span>Sépia <i id="vSepia" class="badge">0%</i></span>
+                  <input type="range" id="fSepia" min="0" max="100" value="0" />
+                </div>
+                <div class="filter">
+                  <span>Matiz <i id="vHue" class="badge">0°</i></span>
+                  <input type="range" id="fHue" min="0" max="360" value="0" />
+                </div>
+                <div class="filter">
+                  <span>Inverter <i id="vInvert" class="badge">0%</i></span>
+                  <input type="range" id="fInvert" min="0" max="100" value="0" />
+                </div>
+              </div>
+              <div class="filter-presets" id="filterPresets">
+                <button type="button" data-preset="reset">Limpar</button>
+                <button type="button" data-preset="vintage">Vintage</button>
+                <button type="button" data-preset="bw">P&B</button>
+                <button type="button" data-preset="vibrant">Vibrante</button>
+                <button type="button" data-preset="cool">Frio</button>
+                <button type="button" data-preset="warm">Quente</button>
+                <button type="button" data-preset="dream">Sonho</button>
+                <button type="button" data-preset="noir">Noir</button>
+              </div>
+            </div>
+
+            <div class="adv-row preview-row" id="previewRow" hidden>
+              <label>Pré-visualização</label>
+              <div class="live-preview">
+                <canvas id="previewCanvas"></canvas>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <div class="actions">
+          <button id="clearBtn" class="btn btn-ghost">Limpar tudo</button>
+          <button id="convertBtn" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            Converter agora
+          </button>
+        </div>
+      </div>
+
+      <!-- Resultados -->
+      <div id="results" class="results" hidden>
+        <div class="results-head">
+          <h3>Pronto! <span class="kawaii">(=^･ω･^=)</span></h3>
+          <div class="results-actions">
+            <button id="downloadAllBtn" class="btn btn-primary">Baixar todos (.zip)</button>
+            <button id="newBatchBtn" class="btn btn-ghost">Nova conversão</button>
+          </div>
+        </div>
+        <div id="statsBanner" class="stats-banner"></div>
+        <div id="resultList" class="result-list"></div>
+      </div>
+    </section>
+
+    <!-- Barra lateral com formatos -->
+    <aside class="side">
+      <h4 class="side-title">Suporte de formatos</h4>
+      <ul class="format-list">
+        <li><span class="ext">PDF</span><span>↔ imagens, multi-página</span></li>
+        <li><span class="ext">PNG</span><span>com transparência</span></li>
+        <li><span class="ext">JPG</span><span>qualidade ajustável</span></li>
+        <li><span class="ext">WEBP</span><span>compressão moderna</span></li>
+        <li><span class="ext">BMP</span><span>sem perdas</span></li>
+        <li><span class="ext">GIF</span><span>quadro único</span></li>
+        <li><span class="ext">ICO</span><span>favicon multi-tamanho</span></li>
+        <li><span class="ext">SVG</span><span>→ raster</span></li>
+      </ul>
+      <div class="side-tip">
+        <strong>Dica:</strong> tudo roda no seu navegador. Funciona até offline depois que carrega.
+      </div>
+    </aside>
+  </main>
+
+  <!-- Grid de formatos -->
+  <section id="formats" class="formats-section">
+    <h2>Combinações populares</h2>
+    <p class="section-sub">Clique em uma para começar com a configuração ideal</p>
+    <div class="combo-grid">
+      <button class="combo" data-from="pdf" data-to="png"><span>PDF</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PNG</span></button>
+      <button class="combo" data-from="png" data-to="pdf"><span>PNG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PDF</span></button>
+      <button class="combo" data-from="jpg" data-to="png"><span>JPG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PNG</span></button>
+      <button class="combo" data-from="png" data-to="jpg"><span>PNG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>JPG</span></button>
+      <button class="combo" data-from="png" data-to="ico"><span>PNG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>ICO</span></button>
+      <button class="combo" data-from="webp" data-to="png"><span>WEBP</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PNG</span></button>
+      <button class="combo" data-from="png" data-to="webp"><span>PNG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>WEBP</span></button>
+      <button class="combo" data-from="svg" data-to="png"><span>SVG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PNG</span></button>
+      <button class="combo" data-from="bmp" data-to="png"><span>BMP</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PNG</span></button>
+      <button class="combo" data-from="jpg" data-to="webp"><span>JPG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>WEBP</span></button>
+      <button class="combo" data-from="pdf" data-to="jpg"><span>PDF</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>JPG</span></button>
+      <button class="combo" data-from="jpg" data-to="pdf"><span>JPG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PDF</span></button>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section id="about" class="about-section">
+    <div class="about-card">
+      <h2>Por que NekoConvert?</h2>
+      <div class="about-grid">
+        <div class="feature">
+          <div class="feat-icon">🔒</div>
+          <h4>Privacidade total</h4>
+          <p>Nenhum byte sai do seu navegador. O processamento todo é local.</p>
+        </div>
+        <div class="feature">
+          <div class="feat-icon">⚡</div>
+          <h4>Velocidade real</h4>
+          <p>Sem fila de upload. A conversão começa instantaneamente.</p>
+        </div>
+        <div class="feature">
+          <div class="feat-icon">🎨</div>
+          <h4>Controle fino</h4>
+          <p>Qualidade, redimensionamento, fundo, página, orientação — tudo seu.</p>
+        </div>
+        <div class="feature">
+          <div class="feat-icon">🐱</div>
+          <h4>Feito com carinho</h4>
+          <p>Open-source friendly, criado por Neko Studios para a comunidade.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <strong>Neko Studios</strong>
+        <span>Built with ♥ and JavaScript</span>
+      </div>
+      <div class="footer-links">
+        <a href="#converter">Conversor</a>
+        <a href="#formats">Formatos</a>
+        <a href="#about">Sobre</a>
+      </div>
+      <small>&copy; <span id="year"></span> Neko Studios. Todos os direitos reservados.</small>
+    </div>
+  </footer>
+
+  <!-- Toasts -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <!-- Mascote -->
+  <div class="neko-mascot" id="mascot" aria-hidden="true">
+    <svg viewBox="0 0 100 100" width="80" height="80">
+      <defs>
+        <linearGradient id="mg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#ff4dd2"/>
+          <stop offset="1" stop-color="#22d3ee"/>
+        </linearGradient>
+      </defs>
+      <ellipse cx="50" cy="60" rx="32" ry="28" fill="url(#mg)"/>
+      <polygon points="22,40 30,18 42,32" fill="url(#mg)"/>
+      <polygon points="78,40 70,18 58,32" fill="url(#mg)"/>
+      <circle cx="40" cy="58" r="3" fill="#0b0014"/>
+      <circle cx="60" cy="58" r="3" fill="#0b0014"/>
+      <path d="M46 68 Q50 72 54 68" stroke="#0b0014" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M35 64 L30 63" stroke="#0b0014" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M35 67 L30 67" stroke="#0b0014" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M65 64 L70 63" stroke="#0b0014" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M65 67 L70 67" stroke="#0b0014" stroke-width="1.4" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

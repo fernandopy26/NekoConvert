@@ -36,18 +36,19 @@ const AUDIO_TARGETS = ['mp3', 'm4a', 'aac', 'wav', 'ogg'];
 const VIDEO_TARGETS = ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi'];
 const FFMPEG_LIB_SOURCES = [
   {
+    ffmpegURL: 'vendor/ffmpeg/ffmpeg.js',
+    coreBase: 'vendor/ffmpeg',
+  },
+  {
     ffmpegURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js',
-    utilURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/umd/index.js',
     coreBase: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd',
   },
   {
     ffmpegURL: 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js',
-    utilURL: 'https://unpkg.com/@ffmpeg/util@0.12.2/dist/umd/index.js',
     coreBase: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd',
   },
   {
     ffmpegURL: 'https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.15/umd/ffmpeg.min.js',
-    utilURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/umd/index.js',
     coreBase: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd',
   },
 ];
@@ -783,11 +784,7 @@ let ffmpegLoadingPromise = null;
 let ffmpegActiveItem = null;
 
 function hasFFmpegLibraries() {
-  return !!(
-    window.FFmpegWASM?.FFmpeg &&
-    window.FFmpegUtil?.fetchFile &&
-    window.FFmpegUtil?.toBlobURL
-  );
+  return !!window.FFmpegWASM?.FFmpeg;
 }
 
 function loadScript(src) {
@@ -810,7 +807,6 @@ async function ensureFFmpegLibraries() {
     for (const source of FFMPEG_LIB_SOURCES) {
       try {
         if (!window.FFmpegWASM?.FFmpeg) await loadScript(source.ffmpegURL);
-        if (!window.FFmpegUtil?.fetchFile || !window.FFmpegUtil?.toBlobURL) await loadScript(source.utilURL);
         if (hasFFmpegLibraries()) {
           ffmpegCoreBase = source.coreBase;
           return;
@@ -832,6 +828,23 @@ async function ensureFFmpegLibraries() {
   }
 }
 
+async function fetchFileData(source) {
+  if (typeof source === 'string' || source instanceof URL) {
+    return new Uint8Array(await (await fetch(source)).arrayBuffer());
+  }
+
+  if (source instanceof Blob) {
+    return new Uint8Array(await source.arrayBuffer());
+  }
+
+  return new Uint8Array();
+}
+
+async function toBlobURL(url, mimeType) {
+  const data = await (await fetch(url)).arrayBuffer();
+  return URL.createObjectURL(new Blob([data], { type: mimeType }));
+}
+
 async function ensureFFmpeg() {
   if (ffmpegReady && ffmpegInstance) return ffmpegInstance;
   if (ffmpegLoadingPromise) return await ffmpegLoadingPromise;
@@ -839,7 +852,6 @@ async function ensureFFmpeg() {
   await ensureFFmpegLibraries();
 
   const { FFmpeg } = window.FFmpegWASM;
-  const { toBlobURL } = window.FFmpegUtil;
   ffmpegInstance = new FFmpeg();
   ffmpegInstance.on('log', ({ message }) => console.debug('[ffmpeg]', message));
   ffmpegInstance.on('progress', ({ progress }) => {
@@ -888,7 +900,7 @@ async function mediaToMedia(item, target, opts) {
   updateProgress(item);
 
   try {
-    await ffmpeg.writeFile(inputName, await window.FFmpegUtil.fetchFile(item.file));
+    await ffmpeg.writeFile(inputName, await fetchFileData(item.file));
     ffmpegActiveItem = item;
     const code = await ffmpeg.exec(args);
     ffmpegActiveItem = null;

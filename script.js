@@ -427,7 +427,7 @@ function toggleSettings() {
     const canRemux = !audioOnly && REMUX_TARGETS.includes(target);
     const copyOption = videoProcessSel.querySelector('option[value="copy"]');
     copyOption.disabled = !canRemux;
-    if (!canRemux && videoProcessSel.value === 'copy') videoProcessSel.value = 'compress';
+    if (!canRemux && videoProcessSel.value === 'copy') videoProcessSel.value = 'compatible';
     const remuxMode = canRemux && videoProcessSel.value === 'copy';
 
     $('#qualityWrap').style.display = 'none';
@@ -923,7 +923,7 @@ async function mediaToMedia(item, target, opts) {
     ffmpegActiveItem = null;
     if (code !== 0) {
       if (opts.videoProcess === 'copy') {
-        throw new Error('modo rápido sem perda não é compatível com este arquivo. Troque Processamento para "comprimir com CRF".');
+        throw new Error('modo rápido sem perda não é compatível com este arquivo. Troque Processamento para "compatível recomendado".');
       }
       throw new Error(`FFmpeg saiu com código ${code}`);
     }
@@ -959,6 +959,8 @@ function buildMediaArgs(inputName, outputName, target, opts, item) {
 
   if (item.kind !== 'video') throw new Error('saída de vídeo precisa de um arquivo de vídeo');
 
+  args.push('-map', '0:v:0', '-map', '0:a?');
+
   const remuxMode = opts.videoProcess === 'copy' && REMUX_TARGETS.includes(target);
   if (remuxMode) {
     args.push('-sn', '-c:v', 'copy');
@@ -984,7 +986,17 @@ function buildMediaArgs(inputName, outputName, target, opts, item) {
     if (opts.stripAudio) args.push('-an');
     else args.push('-c:a', 'libmp3lame', '-b:a', opts.audioBitrate);
   } else {
-    args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(opts.videoQuality), '-pix_fmt', 'yuv420p');
+    const preset = opts.videoProcess === 'compress' ? 'veryfast' : 'ultrafast';
+    args.push(
+      '-c:v', 'libx264',
+      '-preset', preset,
+      '-crf', String(opts.videoQuality),
+      '-pix_fmt', 'yuv420p',
+      '-profile:v', 'high',
+      '-color_primaries', 'bt709',
+      '-color_trc', 'bt709',
+      '-colorspace', 'bt709'
+    );
     if (opts.stripAudio) args.push('-an');
     else args.push('-c:a', 'aac', '-b:a', opts.audioBitrate);
     if (opts.fastStart && ['mp4', 'mov', 'm4v'].includes(target)) args.push('-movflags', '+faststart');

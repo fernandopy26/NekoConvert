@@ -11,6 +11,7 @@ if (window['pdfjsLib']) {
 
 // ====== Estado ======
 const state = {
+  mode: 'image',
   files: [],     // [{id, file, kind, name, size, thumb, status, progress}]
   results: [],   // [{name, blob, originalSize, newSize, mime}]
 };
@@ -27,16 +28,37 @@ const fmtBytes = (b) => {
   return (b / 1024 ** 3).toFixed(2) + ' GB';
 };
 
+const VIDEO_EXTS = ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', 'mpeg', 'mpg', '3gp', 'flv', 'wmv', 'ogv'];
+const AUDIO_EXTS = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'flac', 'aiff', 'aif', 'wma'];
+const IMAGE_ACCEPT = 'image/*,application/pdf,.svg,.ico,.bmp,.webp,.gif,.heic';
+const VIDEO_ACCEPT = 'video/*,audio/*,.mp4,.mov,.m4v,.webm,.mkv,.avi,.mpeg,.mpg,.3gp,.flv,.wmv,.ogv,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.aiff,.aif,.wma';
+const AUDIO_TARGETS = ['mp3', 'm4a', 'aac', 'wav', 'ogg'];
+const VIDEO_TARGETS = ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi'];
+const FFMPEG_CORE_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
+
 const detectKind = (file) => {
   const t = file.type.toLowerCase();
   const ext = file.name.split('.').pop().toLowerCase();
   if (t === 'application/pdf' || ext === 'pdf') return 'pdf';
   if (t.startsWith('image/svg') || ext === 'svg') return 'svg';
   if (ext === 'ico') return 'ico';
+  if (t.startsWith('video/') || VIDEO_EXTS.includes(ext)) return 'video';
+  if (t.startsWith('audio/') || AUDIO_EXTS.includes(ext)) return 'audio';
   if (t.startsWith('image/')) return 'image';
   if (['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'].includes(ext)) return 'image';
   return 'unknown';
 };
+
+const modeForKind = (kind) => (kind === 'video' || kind === 'audio' ? 'video' : 'image');
+const isAudioTarget = (target) => AUDIO_TARGETS.includes(target);
+const kindLabel = (kind) => ({
+  image: 'Imagem',
+  svg: 'SVG',
+  ico: 'ICO',
+  pdf: 'PDF',
+  video: 'Vídeo',
+  audio: 'Áudio',
+}[kind] || 'Arquivo');
 
 const stripExt = (name) => name.replace(/\.[^.]+$/, '');
 
@@ -69,7 +91,13 @@ const fi = $('#fileInput');
 $('#browseBtn').addEventListener('click', (e) => { e.stopPropagation(); fi.click(); });
 dz.addEventListener('click', () => fi.click());
 dz.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fi.click(); } });
-fi.addEventListener('change', (e) => addFiles(Array.from(e.target.files)));
+fi.addEventListener('change', async (e) => {
+  await addFiles(Array.from(e.target.files));
+  fi.value = '';
+});
+$$('.mode-tab').forEach((btn) => {
+  btn.addEventListener('click', () => setMode(btn.dataset.mode, { fromUser: true }));
+});
 
 ['dragenter', 'dragover'].forEach((ev) =>
   dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('is-dragging'); })
@@ -103,6 +131,12 @@ async function addFiles(files) {
       showToast(`Formato não suportado: ${f.name}`, 'error');
       continue;
     }
+    const fileMode = modeForKind(kind);
+    if (!state.files.length && state.mode !== fileMode) setMode(fileMode);
+    if (state.files.length && state.mode !== fileMode) {
+      showToast(`"${f.name}" pertence ao modo ${fileMode === 'video' ? 'vídeo/áudio' : 'imagens/PDF'}. Limpe a fila ou mude de modo.`, 'error');
+      continue;
+    }
     const item = {
       id: uid(),
       file: f,
@@ -134,7 +168,44 @@ async function generateThumb(item) {
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
       item.thumb = canvas.toDataURL('image/png');
     } catch (e) { console.warn('thumb pdf falhou', e); }
+  } else if (item.kind === 'video') {
+    try {
+      item.thumb = await captureVideoThumb(item.file);
+    } catch (e) { console.warn('thumb video falhou', e); }
   }
+}
+
+function captureVideoThumb(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let done = false;
+    const finish = (value, err) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      if (err) reject(err);
+      else resolve(value);
+    };
+
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      video.currentTime = Math.min(0.6, Math.max(0, duration / 4));
+    };
+    video.onseeked = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 180;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      finish(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    video.onerror = () => finish(null, new Error('preview indisponível'));
+    setTimeout(() => finish(null, new Error('preview demorou demais')), 2400);
+    video.src = url;
+  });
 }
 
 // ====== Render lista ======
@@ -163,7 +234,7 @@ function renderFiles() {
       </div>
       <div class="file-info">
         <div class="name" contenteditable="true" spellcheck="false">${stripExt(it.name)}</div>
-        <div class="meta">${fmtBytes(it.size)} · ${it.ext.toUpperCase()}</div>
+        <div class="meta">${fmtBytes(it.size)} · ${kindLabel(it.kind)} · ${it.ext.toUpperCase()}</div>
       </div>
       <div class="file-progress"><i style="width:${it.progress}%"></i></div>
       <button type="button" class="file-remove" data-remove="${it.id}" title="Remover" aria-label="Remover arquivo">
@@ -199,23 +270,158 @@ $('#fileList').addEventListener('keydown', (e) => {
   }
 });
 
+// ====== Modos / formatos ======
+const targetSel = $('#targetFormat');
+const imageTargetOptions = targetSel.innerHTML;
+const videoTargetOptions = `
+  <optgroup label="Vídeo">
+    <option value="mp4">MP4 — H.264 universal</option>
+    <option value="mov">MOV — QuickTime</option>
+    <option value="m4v">M4V — Apple</option>
+    <option value="webm">WEBM — web moderno</option>
+    <option value="mkv">MKV — contêiner flexível</option>
+    <option value="avi">AVI — legado</option>
+  </optgroup>
+  <optgroup label="Extrair áudio">
+    <option value="mp3">MP3 — universal</option>
+    <option value="m4a">M4A — AAC</option>
+    <option value="aac">AAC — compacto</option>
+    <option value="wav">WAV — sem compressão</option>
+    <option value="ogg">OGG — Vorbis</option>
+  </optgroup>
+`;
+const formatSupport = {
+  image: [
+    ['PDF', '↔ imagens, multi-página'],
+    ['PNG', 'com transparência'],
+    ['JPG', 'qualidade ajustável'],
+    ['WEBP', 'compressão moderna'],
+    ['BMP', 'sem perdas'],
+    ['GIF', 'quadro único'],
+    ['ICO', 'favicon multi-tamanho'],
+    ['SVG', '→ raster'],
+  ],
+  video: [
+    ['MP4', 'H.264 universal'],
+    ['MOV', 'QuickTime / Apple'],
+    ['WEBM', 'VP9 para web'],
+    ['MKV', 'contêiner flexível'],
+    ['AVI', 'compatibilidade legada'],
+    ['MP3', 'extração de áudio'],
+    ['M4A', 'AAC compacto'],
+    ['WAV', 'áudio sem compressão'],
+  ],
+};
+
+targetSel.addEventListener('change', toggleSettings);
+const videoQualityIn = $('#videoQuality');
+
+function syncVideoQualityLabel() {
+  $('#videoQualityVal').textContent = videoQualityIn.value + ' CRF';
+}
+
+function resetVideoQualityToDefault() {
+  videoQualityIn.value = videoQualityIn.defaultValue || '23';
+  syncVideoQualityLabel();
+}
+
+videoQualityIn.addEventListener('input', syncVideoQualityLabel);
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) syncVideoQualityLabel();
+  else resetVideoQualityToDefault();
+});
+
+function setMode(mode, opts = {}) {
+  if (!['image', 'video'].includes(mode) || state.mode === mode) return;
+  const hadQueue = state.files.length || state.results.length;
+  state.mode = mode;
+  document.body.dataset.mode = mode;
+  fi.accept = mode === 'video' ? VIDEO_ACCEPT : IMAGE_ACCEPT;
+  targetSel.innerHTML = mode === 'video' ? videoTargetOptions : imageTargetOptions;
+  targetSel.value = mode === 'video' ? 'mp4' : 'png';
+
+  $('#dropTitle').textContent = mode === 'video' ? 'Solte vídeos ou áudios aqui' : 'Solte arquivos aqui';
+  $('#dropHint').textContent = mode === 'video'
+    ? 'MP4 · MOV · WEBM · MKV · MP3 · WAV · conversão local com FFmpeg'
+    : 'Imagens · PDF · SVG · ICO · até centenas de arquivos por vez';
+
+  $$('.mode-tab').forEach((btn) => {
+    const active = btn.dataset.mode === mode;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+
+  if (hadQueue) {
+    state.files = [];
+    state.results = [];
+    renderFiles();
+    renderResults();
+  }
+
+  renderFormatSupport();
+  toggleSettings();
+  updateLivePreview();
+
+  if (opts.fromUser && hadQueue) showToast('Modo alterado. A fila foi limpa para evitar misturar tipos.', 'info');
+  else if (opts.fromUser) showToast(`Modo ${mode === 'video' ? 'vídeo/áudio' : 'imagens/PDF'} ativo`, 'info');
+}
+
+function renderFormatSupport() {
+  const rows = formatSupport[state.mode];
+  $('#formatList').innerHTML = rows
+    .map(([ext, desc]) => `<li><span class="ext">${ext}</span><span>${desc}</span></li>`)
+    .join('');
+  $('.side-title').textContent = state.mode === 'video' ? 'Formatos de vídeo' : 'Suporte de formatos';
+  $('#sideTip').innerHTML = state.mode === 'video'
+    ? '<strong>Dica:</strong> a primeira conversão carrega o motor FFmpeg no navegador; depois a fila fica mais rápida.'
+    : '<strong>Dica:</strong> tudo roda no seu navegador. Funciona até offline depois que carrega.';
+}
+
 // ====== Auto-seleção do formato alvo ======
 function autoSelectTarget() {
-  // Se todos forem PDF, sugere PNG. Se imagens, sugere PNG. Se já tem PNG, sugere PDF.
   if (!state.files.length) return;
   const kinds = new Set(state.files.map((f) => f.kind));
   const exts = new Set(state.files.map((f) => f.ext));
-  const sel = $('#targetFormat');
-  if (kinds.has('pdf') && kinds.size === 1) sel.value = 'png';
-  else if (exts.has('png') && exts.size === 1) sel.value = 'jpeg';
+
+  if (state.mode === 'video') {
+    if (kinds.size === 1 && kinds.has('audio')) targetSel.value = exts.size === 1 && exts.has('mp3') ? 'm4a' : 'mp3';
+    else if (exts.size === 1 && exts.has('mp4')) targetSel.value = 'mov';
+    else targetSel.value = 'mp4';
+    toggleSettings();
+    return;
+  }
+
+  // Se todos forem PDF, sugere PNG. Se já tem PNG, sugere JPEG.
+  if (kinds.has('pdf') && kinds.size === 1) targetSel.value = 'png';
+  else if (exts.has('png') && exts.size === 1) targetSel.value = 'jpeg';
   toggleSettings();
 }
 
 // ====== Toggle settings com base no alvo ======
-const targetSel = $('#targetFormat');
-targetSel.addEventListener('change', toggleSettings);
 function toggleSettings() {
   const target = targetSel.value;
+
+  if (state.mode === 'video') {
+    const audioOnly = isAudioTarget(target);
+    $('#qualityWrap').style.display = 'none';
+    $('#resizeWrap').style.display = 'none';
+    $('#bgWrap').style.display = 'none';
+    $('#pdfWrap').style.display = 'none';
+    $('#imageAdvanced').hidden = true;
+    $('#videoQualityWrap').hidden = audioOnly;
+    $('#videoResizeWrap').hidden = audioOnly;
+    $('#audioBitrateWrap').hidden = false;
+    $('#videoFps').style.display = audioOnly ? 'none' : '';
+    $('#stripAudioWrap').style.display = audioOnly ? 'none' : '';
+    $('#fastStartWrap').style.display = !audioOnly && ['mp4', 'mov', 'm4v'].includes(target) ? '' : 'none';
+    return;
+  }
+
+  $('#imageAdvanced').hidden = false;
+  $('#videoQualityWrap').hidden = true;
+  $('#videoResizeWrap').hidden = true;
+  $('#audioBitrateWrap').hidden = true;
+  $('#resizeWrap').style.display = '';
   $('#qualityWrap').style.display = ['jpg', 'jpeg', 'webp'].includes(target) ? '' : 'none';
   $('#bgWrap').style.display = ['jpg', 'jpeg', 'bmp', 'pdf'].includes(target) ? '' : 'none';
   $('#pdfWrap').style.display = target === 'pdf' ? '' : 'none';
@@ -402,6 +608,7 @@ $('#downloadAllBtn').addEventListener('click', downloadAllAsZip);
 $$('.combo').forEach((b) => {
   b.addEventListener('click', () => {
     const to = b.dataset.to;
+    setMode(b.dataset.mode || 'image');
     targetSel.value = to;
     toggleSettings();
     $('#converter').scrollIntoView({ behavior: 'smooth' });
@@ -419,7 +626,7 @@ async function convertAll() {
   $('#convertBtn').classList.add('converting');
 
   try {
-    if (target === 'pdf' && opts.pdfMerge && state.files.length > 1) {
+    if (state.mode === 'image' && target === 'pdf' && opts.pdfMerge && state.files.length > 1) {
       // Junta tudo num PDF só
       const blob = await mergeIntoPdf(state.files, opts);
       state.results.push({
@@ -479,6 +686,12 @@ function collectOptions() {
     flipH: !!document.querySelector('#flipGroup [data-flip="h"].active'),
     flipV: !!document.querySelector('#flipGroup [data-flip="v"].active'),
     filterCSS: buildFilterCSS(),
+    videoQuality: parseInt($('#videoQuality').value, 10),
+    videoScale: $('#videoScale').value,
+    videoFps: $('#videoFps').value,
+    audioBitrate: $('#audioBitrate').value,
+    stripAudio: $('#stripAudio').checked,
+    fastStart: $('#fastStart').checked,
   };
 }
 
@@ -517,6 +730,9 @@ function drawWithTransforms(srcImageOrCanvas, opts, naturalW, naturalH) {
 
 // ====== Conversão por item ======
 async function convertOne(item, target, opts) {
+  if (item.kind === 'video' || item.kind === 'audio') {
+    return await mediaToMedia(item, target, opts);
+  }
   // PDF -> imagem
   if (item.kind === 'pdf' && target !== 'pdf') {
     return await pdfToImages(item, target, opts);
@@ -540,6 +756,158 @@ async function convertOne(item, target, opts) {
     };
   }
   throw new Error('combinação não suportada');
+}
+
+// ====== Video / audio -> video / audio ======
+let ffmpegInstance = null;
+let ffmpegReady = false;
+let ffmpegLoadingPromise = null;
+let ffmpegActiveItem = null;
+
+async function ensureFFmpeg() {
+  if (ffmpegReady && ffmpegInstance) return ffmpegInstance;
+  if (ffmpegLoadingPromise) return await ffmpegLoadingPromise;
+
+  if (typeof FFmpegWASM === 'undefined' || typeof FFmpegUtil === 'undefined') {
+    throw new Error('motor de vídeo não carregou. Verifique a conexão e recarregue a página.');
+  }
+
+  const { FFmpeg } = FFmpegWASM;
+  const { toBlobURL } = FFmpegUtil;
+  ffmpegInstance = new FFmpeg();
+  ffmpegInstance.on('log', ({ message }) => console.debug('[ffmpeg]', message));
+  ffmpegInstance.on('progress', ({ progress }) => {
+    if (!ffmpegActiveItem || !Number.isFinite(progress)) return;
+    ffmpegActiveItem.progress = Math.min(96, Math.max(8, Math.round(progress * 88) + 8));
+    updateProgress(ffmpegActiveItem);
+  });
+
+  ffmpegLoadingPromise = (async () => {
+    showToast('Carregando motor de vídeo (~31 MB)...', 'info');
+    await ffmpegInstance.load({
+      coreURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+    ffmpegReady = true;
+    showToast('Motor de vídeo pronto', 'success');
+    return ffmpegInstance;
+  })();
+
+  try {
+    return await ffmpegLoadingPromise;
+  } catch (e) {
+    ffmpegInstance = null;
+    ffmpegReady = false;
+    throw e;
+  } finally {
+    ffmpegLoadingPromise = null;
+  }
+}
+
+async function mediaToMedia(item, target, opts) {
+  if (item.kind === 'audio' && !isAudioTarget(target)) {
+    throw new Error('arquivos de áudio só podem sair como áudio');
+  }
+  if (!VIDEO_TARGETS.includes(target) && !isAudioTarget(target)) {
+    throw new Error('formato de vídeo/áudio não suportado');
+  }
+
+  const ffmpeg = await ensureFFmpeg();
+  const inputName = `input-${item.id}.${item.ext || 'bin'}`;
+  const outputExt = mediaExtOf(target);
+  const outputWorkName = `output-${item.id}.${outputExt}`;
+  const args = buildMediaArgs(inputName, outputWorkName, target, opts, item);
+
+  item.progress = Math.max(item.progress, 8);
+  updateProgress(item);
+
+  try {
+    await ffmpeg.writeFile(inputName, await FFmpegUtil.fetchFile(item.file));
+    ffmpegActiveItem = item;
+    const code = await ffmpeg.exec(args);
+    ffmpegActiveItem = null;
+    if (code !== 0) throw new Error(`FFmpeg saiu com código ${code}`);
+
+    const data = await ffmpeg.readFile(outputWorkName);
+    const blob = new Blob([data], { type: mediaMimeOf(target) });
+    return {
+      name: outputName(item, outputExt),
+      blob,
+      originalSize: item.size,
+      newSize: blob.size,
+      mime: mediaMimeOf(target),
+    };
+  } finally {
+    ffmpegActiveItem = null;
+    await deleteFFmpegFile(ffmpeg, inputName);
+    await deleteFFmpegFile(ffmpeg, outputWorkName);
+  }
+}
+
+function buildMediaArgs(inputName, outputName, target, opts, item) {
+  const args = ['-y', '-i', inputName];
+
+  if (isAudioTarget(target)) {
+    args.push('-vn');
+    if (target === 'mp3') args.push('-c:a', 'libmp3lame', '-b:a', opts.audioBitrate);
+    else if (target === 'm4a' || target === 'aac') args.push('-c:a', 'aac', '-b:a', opts.audioBitrate);
+    else if (target === 'wav') args.push('-c:a', 'pcm_s16le');
+    else if (target === 'ogg') args.push('-c:a', 'libvorbis', '-b:a', opts.audioBitrate);
+    args.push(outputName);
+    return args;
+  }
+
+  if (item.kind !== 'video') throw new Error('saída de vídeo precisa de um arquivo de vídeo');
+
+  const filters = [];
+  if (opts.videoScale) filters.push(`scale=-2:${opts.videoScale}`);
+  if (opts.videoFps) filters.push(`fps=${opts.videoFps}`);
+  if (filters.length) args.push('-vf', filters.join(','));
+  args.push('-sn');
+
+  if (target === 'webm') {
+    args.push('-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', String(Math.min(42, opts.videoQuality + 8)), '-deadline', 'realtime', '-cpu-used', '4');
+    if (opts.stripAudio) args.push('-an');
+    else args.push('-c:a', 'libopus', '-b:a', opts.audioBitrate);
+  } else if (target === 'avi') {
+    args.push('-c:v', 'mpeg4', '-q:v', String(crfToQscale(opts.videoQuality)));
+    if (opts.stripAudio) args.push('-an');
+    else args.push('-c:a', 'libmp3lame', '-b:a', opts.audioBitrate);
+  } else {
+    args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(opts.videoQuality), '-pix_fmt', 'yuv420p');
+    if (opts.stripAudio) args.push('-an');
+    else args.push('-c:a', 'aac', '-b:a', opts.audioBitrate);
+    if (opts.fastStart && ['mp4', 'mov', 'm4v'].includes(target)) args.push('-movflags', '+faststart');
+  }
+
+  args.push(outputName);
+  return args;
+}
+
+function crfToQscale(crf) {
+  return Math.max(2, Math.min(9, Math.round((crf - 14) / 3)));
+}
+
+async function deleteFFmpegFile(ffmpeg, name) {
+  try { await ffmpeg.deleteFile(name); } catch {}
+}
+
+function mediaExtOf(target) {
+  return target;
+}
+
+function mediaMimeOf(target) {
+  if (target === 'mp4' || target === 'm4v') return 'video/mp4';
+  if (target === 'mov') return 'video/quicktime';
+  if (target === 'webm') return 'video/webm';
+  if (target === 'mkv') return 'video/x-matroska';
+  if (target === 'avi') return 'video/x-msvideo';
+  if (target === 'mp3') return 'audio/mpeg';
+  if (target === 'm4a') return 'audio/mp4';
+  if (target === 'aac') return 'audio/aac';
+  if (target === 'wav') return 'audio/wav';
+  if (target === 'ogg') return 'audio/ogg';
+  return 'application/octet-stream';
 }
 
 // ====== Imagem -> Imagem ======
@@ -946,9 +1314,13 @@ function renderResults() {
     const ext = r.name.split('.').pop().toUpperCase();
     const isImage = r.mime.startsWith('image/') && r.mime !== 'image/x-icon';
     const isPdf = r.mime === 'application/pdf';
+    const isVideo = r.mime.startsWith('video/');
+    const isAudio = r.mime.startsWith('audio/');
 
     let preview;
     if (isImage) preview = `<img src="${url}" alt="" />`;
+    else if (isVideo) preview = `<video src="${url}" controls preload="metadata"></video>`;
+    else if (isAudio) preview = `<span class="placeholder">AUD</span>`;
     else if (isPdf) preview = `<span class="placeholder">PDF</span>`;
     else preview = `<span class="placeholder">${ext}</span>`;
 
@@ -1015,5 +1387,8 @@ window.addEventListener('keydown', (e) => {
 });
 
 // Inicial
+document.body.dataset.mode = state.mode;
+renderFormatSupport();
+resetVideoQualityToDefault();
 toggleSettings();
 updateLivePreview();

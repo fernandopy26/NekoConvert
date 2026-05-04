@@ -208,6 +208,50 @@ body {
 }
 
 /* ====== Dropzone ====== */
+.mode-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  transition: color .2s, background .2s, box-shadow .2s;
+}
+.mode-tab:hover { color: var(--text); }
+.mode-tab.active {
+  color: white;
+  background: var(--gradient);
+  box-shadow: 0 10px 24px -14px rgba(255, 77, 210, 0.8);
+}
+.mode-ico {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .8px;
+}
+
 .dropzone {
   position: relative;
   border: 2px dashed var(--border-strong);
@@ -359,13 +403,16 @@ input[type="range"]::-moz-range-thumb {
   background: var(--pink); cursor: pointer;
 }
 
-.resize-row, .pdf-row, .bg-row {
+.resize-row, .pdf-row, .bg-row, .video-row {
   display: grid; gap: 8px; align-items: center;
 }
 .resize-row { grid-template-columns: 1fr auto 1fr 1fr; }
 .bg-row { grid-template-columns: auto 1fr; }
 .pdf-row { grid-template-columns: 1fr 1fr; }
+.video-row { grid-template-columns: 1fr 1fr; }
 .x { color: var(--muted); text-align: center; }
+
+.video-setting .check { margin-right: 10px; }
 
 /* ====== Edição avançada ====== */
 .advanced {
@@ -532,6 +579,12 @@ input[type="range"]::-moz-range-thumb {
   background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
 .result-thumb img { max-width: 100%; max-height: 100%; }
+.result-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
 .result-thumb .placeholder {
   font-family: 'JetBrains Mono', monospace; font-size: 32px; font-weight: 700;
   color: var(--pink);
@@ -696,6 +749,9 @@ input[type="range"]::-moz-range-thumb {
   .topbar { padding: 12px 16px; }
   .panel { padding: 18px; }
   .dropzone { padding: 36px 16px; }
+  .mode-switch { width: 100%; }
+  .mode-tab { flex: 1; justify-content: center; }
+  .video-row { grid-template-columns: 1fr; }
 }
 
 /* ====== Loading skeleton ====== */

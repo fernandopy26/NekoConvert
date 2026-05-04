@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Conversor universal de arquivos — PDF, PNG, JPG, WEBP, ICO, SVG e muito mais. 100% no navegador, sem upload. Por Neko Studios." />
+  <meta name="description" content="Conversor universal de arquivos — imagens, PDF, vídeos e áudio. 100% no navegador, sem upload. Por Neko Studios." />
   <title>NekoConvert — Conversor Universal | Neko Studios</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="shortcut icon" href="favicon.svg" />
@@ -17,6 +17,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+  <script src="https://unpkg.com/@ffmpeg/util@0.12.2/dist/umd/index.js"></script>
 </head>
 <body>
   <!-- Fundo animado -->
@@ -77,10 +79,10 @@
       em segundos. <span class="kawaii">≧^◡^≦</span>
     </h1>
     <p class="hero-sub">
-      PDF, PNG, JPG, WEBP, BMP, GIF, ICO, SVG e mais. Sem servidores. Sem cadastro. Sem limites de tamanho.
+      PDF, PNG, JPG, WEBP, BMP, GIF, ICO, SVG, MOV, MP4, WEBM, MP3 e mais. Sem servidores. Sem cadastro.
     </p>
     <div class="hero-stats">
-      <div><strong id="statFormats">18+</strong><span>formatos</span></div>
+      <div><strong id="statFormats">30+</strong><span>formatos</span></div>
       <div><strong>0</strong><span>uploads para servidor</span></div>
       <div><strong>∞</strong><span>conversões grátis</span></div>
     </div>
@@ -95,6 +97,17 @@
     <!-- Painel principal -->
     <section class="panel">
       <!-- Dropzone -->
+      <div class="mode-switch" role="tablist" aria-label="Modo de conversão">
+        <button id="imageModeBtn" class="mode-tab active" type="button" data-mode="image" role="tab" aria-selected="true">
+          <span class="mode-ico" aria-hidden="true">IMG</span>
+          Imagens e PDF
+        </button>
+        <button id="videoModeBtn" class="mode-tab" type="button" data-mode="video" role="tab" aria-selected="false">
+          <span class="mode-ico" aria-hidden="true">VID</span>
+          Vídeo e áudio
+        </button>
+      </div>
+
       <div id="dropzone" class="dropzone" tabindex="0">
         <input type="file" id="fileInput" multiple hidden
                accept="image/*,application/pdf,.svg,.ico,.bmp,.webp,.gif,.heic" />
@@ -106,9 +119,9 @@
               <path d="M8 44v8a4 4 0 0 0 4 4h40a4 4 0 0 0 4-4v-8"/>
             </svg>
           </div>
-          <h3>Solte arquivos aqui</h3>
+          <h3 id="dropTitle">Solte arquivos aqui</h3>
           <p>ou <button class="link-btn" id="browseBtn" type="button">selecione do seu dispositivo</button></p>
-          <small>Imagens · PDF · SVG · ICO · até centenas de arquivos por vez</small>
+          <small id="dropHint">Imagens · PDF · SVG · ICO · até centenas de arquivos por vez</small>
         </div>
       </div>
 
@@ -145,6 +158,49 @@
           <div class="setting" id="qualityWrap">
             <label for="quality">Qualidade <span id="qualityVal" class="badge">92%</span></label>
             <input type="range" id="quality" min="10" max="100" value="92" />
+          </div>
+
+          <div class="setting video-setting" id="videoQualityWrap" hidden>
+            <label for="videoQuality">Qualidade de vídeo <span id="videoQualityVal" class="badge">23 CRF</span></label>
+            <input type="range" id="videoQuality" min="18" max="35" value="23" />
+          </div>
+
+          <div class="setting video-setting" id="videoResizeWrap" hidden>
+            <label for="videoScale">Resolução</label>
+            <select id="videoScale">
+              <option value="">manter original</option>
+              <option value="2160">4K UHD</option>
+              <option value="1440">QHD</option>
+              <option value="1080">Full HD 1080p</option>
+              <option value="720">HD 720p</option>
+              <option value="480">SD 480p</option>
+              <option value="360">mobile leve</option>
+            </select>
+          </div>
+
+          <div class="setting video-setting" id="audioBitrateWrap" hidden>
+            <label for="audioBitrate">Áudio</label>
+            <div class="video-row">
+              <select id="audioBitrate">
+                <option value="96k">96 kbps</option>
+                <option value="128k" selected>128 kbps</option>
+                <option value="192k">192 kbps</option>
+                <option value="256k">256 kbps</option>
+                <option value="320k">320 kbps</option>
+              </select>
+              <select id="videoFps">
+                <option value="">FPS original</option>
+                <option value="24">24 FPS</option>
+                <option value="30">30 FPS</option>
+                <option value="60">60 FPS</option>
+              </select>
+            </div>
+            <label class="check" id="stripAudioWrap">
+              <input type="checkbox" id="stripAudio" /> remover áudio do vídeo
+            </label>
+            <label class="check" id="fastStartWrap">
+              <input type="checkbox" id="fastStart" checked /> otimizar MP4/MOV para web
+            </label>
           </div>
 
           <div class="setting" id="resizeWrap">
@@ -232,7 +288,7 @@
           </div>
         </div>
 
-        <details class="advanced">
+        <details class="advanced" id="imageAdvanced">
           <summary>
             <span class="summary-left">
               <span class="adv-ico">✨</span>
@@ -347,7 +403,7 @@
     <!-- Barra lateral com formatos -->
     <aside class="side">
       <h4 class="side-title">Suporte de formatos</h4>
-      <ul class="format-list">
+      <ul class="format-list" id="formatList">
         <li><span class="ext">PDF</span><span>↔ imagens, multi-página</span></li>
         <li><span class="ext">PNG</span><span>com transparência</span></li>
         <li><span class="ext">JPG</span><span>qualidade ajustável</span></li>
@@ -357,7 +413,7 @@
         <li><span class="ext">ICO</span><span>favicon multi-tamanho</span></li>
         <li><span class="ext">SVG</span><span>→ raster</span></li>
       </ul>
-      <div class="side-tip">
+      <div class="side-tip" id="sideTip">
         <strong>Dica:</strong> tudo roda no seu navegador. Funciona até offline depois que carrega.
       </div>
     </aside>
@@ -380,6 +436,12 @@
       <button class="combo" data-from="jpg" data-to="webp"><span>JPG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>WEBP</span></button>
       <button class="combo" data-from="pdf" data-to="jpg"><span>PDF</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>JPG</span></button>
       <button class="combo" data-from="jpg" data-to="pdf"><span>JPG</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>PDF</span></button>
+      <button class="combo" data-mode="video" data-from="mov" data-to="mp4"><span>MOV</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>MP4</span></button>
+      <button class="combo" data-mode="video" data-from="mp4" data-to="mov"><span>MP4</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>MOV</span></button>
+      <button class="combo" data-mode="video" data-from="mp4" data-to="mp3"><span>MP4</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>MP3</span></button>
+      <button class="combo" data-mode="video" data-from="webm" data-to="mp4"><span>WEBM</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>MP4</span></button>
+      <button class="combo" data-mode="video" data-from="mkv" data-to="mp4"><span>MKV</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>MP4</span></button>
+      <button class="combo" data-mode="video" data-from="mp4" data-to="webm"><span>MP4</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg><span>WEBM</span></button>
     </div>
   </section>
 

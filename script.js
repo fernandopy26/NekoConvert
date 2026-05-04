@@ -34,6 +34,7 @@ const IMAGE_ACCEPT = 'image/*,application/pdf,.svg,.ico,.bmp,.webp,.gif,.heic';
 const VIDEO_ACCEPT = 'video/*,audio/*,.mp4,.mov,.m4v,.webm,.mkv,.avi,.mpeg,.mpg,.3gp,.flv,.wmv,.ogv,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.aiff,.aif,.wma';
 const AUDIO_TARGETS = ['mp3', 'm4a', 'aac', 'wav', 'ogg'];
 const VIDEO_TARGETS = ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi'];
+const REMUX_TARGETS = ['mp4', 'mov', 'm4v', 'mkv'];
 const FFMPEG_LIB_SOURCES = [
   {
     ffmpegURL: 'vendor/ffmpeg/ffmpeg.js',
@@ -333,6 +334,7 @@ const formatSupport = {
 
 targetSel.addEventListener('change', toggleSettings);
 const videoQualityIn = $('#videoQuality');
+const videoProcessSel = $('#videoProcess');
 
 function syncVideoQualityLabel() {
   $('#videoQualityVal').textContent = videoQualityIn.value + ' CRF';
@@ -344,6 +346,7 @@ function resetVideoQualityToDefault() {
 }
 
 videoQualityIn.addEventListener('input', syncVideoQualityLabel);
+videoProcessSel.addEventListener('change', toggleSettings);
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) syncVideoQualityLabel();
   else resetVideoQualityToDefault();
@@ -421,14 +424,26 @@ function toggleSettings() {
 
   if (state.mode === 'video') {
     const audioOnly = isAudioTarget(target);
+    const canRemux = !audioOnly && REMUX_TARGETS.includes(target);
+    const copyOption = videoProcessSel.querySelector('option[value="copy"]');
+    copyOption.disabled = !canRemux;
+    if (!canRemux && videoProcessSel.value === 'copy') videoProcessSel.value = 'compress';
+    const remuxMode = canRemux && videoProcessSel.value === 'copy';
+
     $('#qualityWrap').style.display = 'none';
     $('#resizeWrap').style.display = 'none';
     $('#bgWrap').style.display = 'none';
     $('#pdfWrap').style.display = 'none';
     $('#imageAdvanced').hidden = true;
-    $('#videoQualityWrap').hidden = audioOnly;
-    $('#videoResizeWrap').hidden = audioOnly;
+    $('#videoProcessWrap').hidden = audioOnly;
+    $('#videoQualityWrap').hidden = audioOnly || remuxMode;
+    $('#videoResizeWrap').hidden = audioOnly || remuxMode;
     $('#audioBitrateWrap').hidden = false;
+    $('#mediaTuningRow').style.display = remuxMode ? 'none' : '';
+    if (remuxMode) {
+      $('#videoScale').value = '';
+      $('#videoFps').value = '';
+    }
     $('#videoFps').style.display = audioOnly ? 'none' : '';
     $('#stripAudioWrap').style.display = audioOnly ? 'none' : '';
     $('#fastStartWrap').style.display = !audioOnly && ['mp4', 'mov', 'm4v'].includes(target) ? '' : 'none';
@@ -436,6 +451,7 @@ function toggleSettings() {
   }
 
   $('#imageAdvanced').hidden = false;
+  $('#videoProcessWrap').hidden = true;
   $('#videoQualityWrap').hidden = true;
   $('#videoResizeWrap').hidden = true;
   $('#audioBitrateWrap').hidden = true;
@@ -705,6 +721,7 @@ function collectOptions() {
     flipV: !!document.querySelector('#flipGroup [data-flip="v"].active'),
     filterCSS: buildFilterCSS(),
     videoQuality: parseInt($('#videoQuality').value, 10),
+    videoProcess: videoProcessSel.value,
     videoScale: $('#videoScale').value,
     videoFps: $('#videoFps').value,
     audioBitrate: $('#audioBitrate').value,
@@ -904,7 +921,12 @@ async function mediaToMedia(item, target, opts) {
     ffmpegActiveItem = item;
     const code = await ffmpeg.exec(args);
     ffmpegActiveItem = null;
-    if (code !== 0) throw new Error(`FFmpeg saiu com código ${code}`);
+    if (code !== 0) {
+      if (opts.videoProcess === 'copy') {
+        throw new Error('modo rápido sem perda não é compatível com este arquivo. Troque Processamento para "comprimir com CRF".');
+      }
+      throw new Error(`FFmpeg saiu com código ${code}`);
+    }
 
     const data = await ffmpeg.readFile(outputWorkName);
     const blob = new Blob([data], { type: mediaMimeOf(target) });
@@ -936,6 +958,16 @@ function buildMediaArgs(inputName, outputName, target, opts, item) {
   }
 
   if (item.kind !== 'video') throw new Error('saída de vídeo precisa de um arquivo de vídeo');
+
+  const remuxMode = opts.videoProcess === 'copy' && REMUX_TARGETS.includes(target);
+  if (remuxMode) {
+    args.push('-sn', '-c:v', 'copy');
+    if (opts.stripAudio) args.push('-an');
+    else args.push('-c:a', 'copy');
+    if (opts.fastStart && ['mp4', 'mov', 'm4v'].includes(target)) args.push('-movflags', '+faststart');
+    args.push(outputName);
+    return args;
+  }
 
   const filters = [];
   if (opts.videoScale) filters.push(`scale=-2:${opts.videoScale}`);

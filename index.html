@@ -158,6 +158,14 @@
             <input type="range" id="quality" min="10" max="100" value="92" />
           </div>
 
+          <div class="setting video-setting" id="videoProcessWrap" hidden>
+            <label for="videoProcess">Processamento</label>
+            <select id="videoProcess">
+              <option value="copy" selected>rápido sem perda</option>
+              <option value="compress">comprimir com CRF</option>
+            </select>
+          </div>
+
           <div class="setting video-setting" id="videoQualityWrap" hidden>
             <label for="videoQuality">Qualidade de vídeo <span id="videoQualityVal" class="badge">23 CRF</span></label>
             <input type="range" id="videoQuality" min="18" max="35" value="23" />
@@ -178,7 +186,7 @@
 
           <div class="setting video-setting" id="audioBitrateWrap" hidden>
             <label for="audioBitrate">Áudio</label>
-            <div class="video-row">
+            <div class="video-row" id="mediaTuningRow">
               <select id="audioBitrate">
                 <option value="96k">96 kbps</option>
                 <option value="128k" selected>128 kbps</option>

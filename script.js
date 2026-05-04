@@ -345,8 +345,19 @@ function resetVideoQualityToDefault() {
   syncVideoQualityLabel();
 }
 
+function applyVideoProcessDefaults() {
+  if (videoProcessSel.value === 'mobile') {
+    videoQualityIn.value = '28';
+    $('#videoScale').value = '720';
+  } else if (videoProcessSel.value === 'compatible') {
+    resetVideoQualityToDefault();
+  }
+  syncVideoQualityLabel();
+  toggleSettings();
+}
+
 videoQualityIn.addEventListener('input', syncVideoQualityLabel);
-videoProcessSel.addEventListener('change', toggleSettings);
+videoProcessSel.addEventListener('change', applyVideoProcessDefaults);
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) syncVideoQualityLabel();
   else resetVideoQualityToDefault();
@@ -972,7 +983,8 @@ function buildMediaArgs(inputName, outputName, target, opts, item) {
   }
 
   const filters = [];
-  if (opts.videoScale) filters.push(`scale=-2:${opts.videoScale}`);
+  const targetScale = opts.videoProcess === 'mobile' && !opts.videoScale ? '720' : opts.videoScale;
+  if (targetScale) filters.push(`scale=-2:${targetScale}`);
   if (opts.videoFps) filters.push(`fps=${opts.videoFps}`);
   if (filters.length) args.push('-vf', filters.join(','));
   args.push('-sn');
@@ -987,10 +999,11 @@ function buildMediaArgs(inputName, outputName, target, opts, item) {
     else args.push('-c:a', 'libmp3lame', '-b:a', opts.audioBitrate);
   } else {
     const preset = opts.videoProcess === 'compress' ? 'veryfast' : 'ultrafast';
+    const crf = opts.videoProcess === 'mobile' ? Math.max(opts.videoQuality, 28) : opts.videoQuality;
     args.push(
       '-c:v', 'libx264',
       '-preset', preset,
-      '-crf', String(opts.videoQuality),
+      '-crf', String(crf),
       '-pix_fmt', 'yuv420p',
       '-profile:v', 'high',
       '-color_primaries', 'bt709',
